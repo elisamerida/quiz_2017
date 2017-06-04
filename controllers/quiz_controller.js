@@ -187,3 +187,96 @@ exports.check = function (req, res, next) {
         answer: answer
     });
 };
+
+//GET /quizzes/randomplay 
+exports.randomplay = function(req, res, next){
+    var sesion = req.session;
+    //Si no hay sesion previa, reseteo puntuacion y el numero de
+    //preguntas acertadas
+    if (!sesion.score){
+        sesion.score = 0;
+    }
+    if (!sesion.preguntasAcertadas) {
+        sesion.preguntasAcertadas = [-1];
+    }
+    
+
+    models.Quiz.count() 
+    .then(function(count){ 
+        return models.Quiz.findAll({ 
+            //Busco en la base de datos aquellas preguntas que no
+            //hayan sido contestadas ya
+            where: {id: {$notIn:sesion.preguntasAcertadas}}
+        })
+    })
+    .then(function(quizzes){
+        if(quizzes.length > 0){
+            //De las que me devuelve escojo una aleatoria
+            var indice = parseInt(Math.random()*quizzes.length);
+            return quizzes[indice];
+        }else{
+            //Si no quedan preguntas no constestadas ya, devuelvo null
+            return null;
+        }
+    })
+    .then(function(quiz){
+        if(quiz){
+            //Lo primero es meter en preguntasAcertadas el id del
+            //quiz que me acaba de salir
+            sesion.preguntasAcertadas.push(quiz.id);
+            //Respondo con random_play
+            res.render('quizzes/random_play',{
+                quiz: quiz,
+                score: sesion.score
+            });
+        }else{ //Cuando no quedan mas preguntas se responde con 
+            //random_nomore
+            var score = sesion.score;
+            sesion.score =0;
+            sesion.preguntasAcertadas = [-1];
+
+            res.render('quizzes/random_nomore', {
+                score:score
+            });
+        }
+    }) //Para manejar errores
+    .catch(function(error){
+        req.flash('error', 'Ha habido un error al cargar el Quiz:' +error.message);
+        next(error);
+    });
+};
+
+//GET /quizzes/randomcheck/:quizId
+exports.randomcheck = function (req,res, next){
+    var sesion = req.session;
+
+    //Si no hay sesion previa, reseteo puntuacion y el numero de
+    //preguntas acertadas
+    if (!sesion.score) {
+        sesion.score = 0;
+    }
+    if (!sesion.preguntasAcertadas) {
+        sesion.preguntasAcertadas = [-1];
+    }
+    //Guardamos la respuesta que se manda en la query
+    var answer = (req.query.answer || ""); 
+
+    //Comprobamos si la respuesta mandada es correcta
+    var result= (answer.toLowerCase().trim() ===req.quiz.answer.toLowerCase().trim());
+
+    //Si es correcta sumamos uno a la puntuacion
+    if(result){
+        sesion.score += 1;
+    }else{ //Sino, reseteamos
+        sesion.score =0;
+        sesion.preguntasAcertadas=[-1];
+    }
+
+    //Respondemos con random_result
+    res.render('quizzes/random_result',{
+        quiz :req.quiz,
+        score: sesion.score,
+        answer: answer,
+        result: result  
+    });
+};
