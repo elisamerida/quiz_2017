@@ -37,10 +37,13 @@ exports.new = function (req, res, next) {
 // POST /quizzes/:quizId/tips
 exports.create = function (req, res, next) {
 
+    var authorId = req.session.user && req.session.user.id || 0;
+
     var tip = models.Tip.build(
         {
             text: req.body.text,
-            QuizId: req.quiz.id
+            QuizId: req.quiz.id,
+            AuthorId: authorId
         });
 
     tip.save()
@@ -96,3 +99,15 @@ exports.destroy = function (req, res, next) {
         next(error);
     });
 };
+
+// MW que permite borrar un tip solamente si al usuario logeado es admin o es el autor del tip.
+exports.adminOrAuthorTipRequired = function(req,res, next){
+    if((req.session.user.isAdmin)|| 
+        (req.tip.AuthorId === req.session.user.id)){
+        next();
+    }else{
+        console.log('Operación prohibida: El usuario logeado no es el autor del tip, ni un administrador.');
+        res.send(403);
+    }
+};
+
